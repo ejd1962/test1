@@ -1,0 +1,147 @@
+$TITLE ('DFIRS: PUTSET_Set_Timer copyright SPAR AEROSPACE LTD')
+DFPUTSET: DO;
+    /*
+    **********************************************************************
+    *                                                                    *
+    *                  COPYRIGHT SPAR AEROSPACE LTD.                     *
+    *                                                                    *
+    **********************************************************************
+    
+    SYSTEM:             DFIRS  (UT01)
+    
+    PROCEDURE NAME:     DFPUTSET    PUTSET_Set_Timer
+    
+    PROCEDURE TYPE:     Reentrant
+    
+    LANGUAGE:           PLM-86
+    
+    REVISION LEVEL:  
+      1    19-Jul-91   DW    Baselined
+      1.1  11-Aug-91   SOA   (STR 004)
+                                 Moved definition of local variables to
+                                 be included within area of reentrancy.
+      1.2  30-Jan-92   SOA   (STR 031)
+                                 use timer database overlay.
+    
+    ESTIMATED NUMBER OF STATEMENTS: 10
+    
+    PROCESS:    N/A
+    
+    INPUT ARGUMENTS:    
+                NAME        TYPE        COMMENT
+                ----        ----        -------
+                Timer_ID    BYTE        Timer ID with value as defined in DFLTIMER
+                Action      BYTE        Action as defined in DFLTIMER
+    
+    
+    RETURN ARGUMENTS:   
+                NAME        TYPE        COMMENT
+                ----        ----        ------- 
+                N/A
+    
+    FUNCTIONAL DESCRIPTION: 
+        This utility is used to start or stop a system timer.
+    
+    METHOD:
+        This utility performs the following:
+    
+                a.  Check input parameter for validity.
+                b.  Prior to doing anything to the timer database
+                    the interrupt state must be saved and the
+                    interrupts disabled.
+                c.  If the timer action is STOP, zero the timer value.
+                d.  If the timer action is START, set the Reload flag
+                    to TRUE to direct the Timer_ISR to load the default
+                    value into the timer.  This flag is used to avoid
+                    setting the timer in the middle of an interrupt 
+                    cycle and thereby causing the resultant time to be
+                    less than the required time.
+                e.  Restore the interrupt state.
+    
+    ASSUMPTIONS:
+        The Timer_ISR actually loads the default value.
+    
+    */
+    
+                    /*******************
+                      EXTERNAL LITERALS
+                     *******************/
+    
+    /*
+    $INCLUDE(DFLSTD.LIT)
+    $INCLUDE(DFLSYSER.LIT)
+    $INCLUDE(DFLTIMER.LIT)
+    */
+    $INCLUDE(../dfirs/extl/DFLSTD.LIT)
+    $INCLUDE(../dfirs/extl/DFLTIMER.LIT)
+    $INCLUDE(../dfirs/extl/DFLTIMER.LIT)
+
+    
+                    /*******************
+                      EXTERNAL DATABASE
+                     *******************/
+    
+    /*
+    $INCLUDE(DFDTIMER.EXT)
+    */
+    $INCLUDE(../dfirs/extl/DFDTIMER.EXT)
+    
+                   /*********************
+                     EXTERNAL PROCEDURES
+                    *********************/
+    /*
+    $INCLUDE(DFPSYSER.EXT)
+    */
+    $INCLUDE(../dfirs/extl/DFPSYSER.EXT)
+    
+    $EJECT
+    
+    PUTSET_Set_Timer: 
+        PROCEDURE ( Timer_ID, Action) PUBLIC REENTRANT;
+    
+        DECLARE 
+            Timer_ID    BYTE        /* Timer ID with value as defined in DFLTIMER */
+        ,   Action      BYTE        /* Action as defined in DFLTIMER */
+        ;
+        
+        DECLARE 
+            Save_Flags      WORD 
+        ,   timer_ptr       POINTER 
+        ,   local_timer     LTIMER_TIMER_TYPE BASED timer_ptr
+        ;
+        
+        If ( (TIMER_ID >= LTIMER_CLOCK_TIMER_ID) 
+             AND 
+             (TIMER_ID < LTIMER_NUM_TIMERS)
+           )  /* Timer ID is within range */
+        then DO;
+            If (  (Action = LTIMER_START) 
+               or (Action = LTIMER_STOP)
+               )  /* Valid Action */
+            then DO;
+            
+                timer_ptr  = @DTIMER_Timer(Timer_ID);
+                Save_Flags = FLAGS;
+                Disable;
+        
+                local_timer.Value = 0;
+                If (Action = LTIMER_START)
+                then DO;
+                    local_timer.Reload_Flag = LSTD_TRUE;
+                END;
+                ELSE DO;
+                    Local_timer.Reload_Flag = LSTD_FALSE;
+                END;
+                
+                FLAGS = Save_Flags;
+            END;
+            Else DO; /* Invalid Action */
+                Call PSYSER_System_Error(LSYSER_UTSET_ACTION_INVALID);
+            END;
+        END;
+        Else DO;                            /* Timer ID is not within range */
+            Call PSYSER_System_Error(LSYSER_UTSET_ID_INVALID);
+        END;
+    END PUTSET_Set_Timer ;
+
+END DFPUTSET ;

@@ -1,0 +1,168 @@
+
+#include "all_headers.h"
+
+/*
+ *	Pointer to the current context
+ */
+CONTEXT_t		*context_head;
+/*
+ *	Pointer to all popped contexts
+ */
+CONTEXT_t		*old_context;
+
+/*
+ *	Search DECL_MEMBER list for symbol and if found, return TRUE
+ *	and pointer to DECL_ID for that symbol.
+ */
+int find_member_symbol
+( 
+   TOKEN_t		    *symbol 
+,  DECL_MEMBER_t	*decl_ptr 
+,  DECL_ID_t		**decl_id 
+)
+{
+	DECL_ID_t	*var_ptr;
+
+	for (var_ptr = decl_ptr->name_list; var_ptr;
+			var_ptr = var_ptr->next_var) {
+		if (!strcmp(var_ptr->name->token_name, symbol->token_name)) {
+			*decl_id = var_ptr;
+			return TRUE;
+		}
+	}
+	*decl_id = NULL;
+	return FALSE;
+}
+
+/*
+ *	Search DECL_MEMBER list for symbol.
+ *	If found, return pointer to DECL_MEMBER containing that symbol
+ *	in decl_found, and return TRUE.
+ *	If not found, return null pointer in decl_found, and return FALSE.
+ */
+int find_list_symbol
+(
+   TOKEN_t		  *symbol 
+,  DECL_MEMBER_t  *decl_ptr  
+,  DECL_MEMBER_t  **decl_found 
+,  DECL_ID_t	  **decl_id 
+)
+{
+	for (*decl_found = decl_ptr; *decl_found;
+			*decl_found = (*decl_found)->next_member) {
+		if (find_member_symbol(symbol, *decl_found, decl_id))
+			return TRUE;
+	}
+	return FALSE;
+}
+
+/*
+ *	Search context for symbol.
+ *	If found, return pointer to DECL_MEMBER containing that symbol
+ *	in decl_found, return DECL_ID for that symbol in decl_id, and
+ *	return TRUE.
+ *	If not found, return null pointers in decl_found and decl_id,
+ *	and return FALSE.
+ */
+int find_symbol( 
+   TOKEN_t		    *symbol 
+,  DECL_MEMBER_t	**decl_found 
+,  DECL_ID_t		**decl_id 
+)
+{
+	CONTEXT_t	*context_ptr;
+
+	for (context_ptr = context_head; context_ptr;
+			context_ptr = context_ptr->next_context) {
+		if (find_list_symbol(symbol, context_ptr->decl_head,
+				decl_found, decl_id))
+			return TRUE;
+	}
+	return FALSE;
+}
+
+/*
+ *	Add a declaration to current context
+ */
+void add_to_context
+( 
+   DECL_MEMBER_t	*decl
+)
+{
+	DECL_MEMBER_t	*decl_ptr;
+
+		/* Find end of declaration list */
+	for (decl_ptr = decl; decl_ptr->next_member; )
+		decl_ptr = decl_ptr->next_member;
+
+		/* Add current declarations to tail of new list */
+	decl_ptr->next_member = context_head->decl_head;
+	context_head->decl_head = decl;
+}
+
+/*
+ *	Add a DECL list to context and NULL the list pointer
+ */
+void add_decl_to_context
+(
+   DECL_t	*decl
+)
+{
+	DECL_t	*decl_ptr;
+
+		/* Find end of declaration list */
+	for (decl_ptr = decl; decl_ptr; decl_ptr = decl_ptr->next_decl) {
+		if (decl_ptr->decl_list)
+			add_to_context(decl_ptr->decl_list);
+		decl_ptr->decl_list = NULL;
+	}
+}
+
+/*
+ *	Push a new context of specified type and name
+ */
+void new_context
+( 
+   int	type 
+,  TOKEN_t	*name 
+)
+{
+	CONTEXT_t	*new_context;
+
+	get_context_ptr(&new_context);
+	new_context->context_type = type;
+	if (name) {
+		get_token_ptr(&new_context->context_name);
+		token_copy(name, new_context->context_name);
+	} else
+		new_context->context_name = NULL;
+	new_context->next_context = context_head;
+	context_head = new_context;
+}
+
+/*
+ *	Pop current context and place on old context
+ */
+void pop_context
+(
+)
+{
+	CONTEXT_t	*popped_context;
+
+	popped_context = context_head;
+	context_head = popped_context->next_context;
+	popped_context->next_context = old_context;
+	old_context = popped_context;
+}
+
+/*
+ *	Initializes context pointers
+ */
+void init_context
+(
+)
+{
+	context_head = NULL;
+	old_context = NULL;
+}
+
